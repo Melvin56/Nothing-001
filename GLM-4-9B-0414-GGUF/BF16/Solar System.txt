@@ -1,0 +1,336 @@
+
+I'll create a full-screen HTML5 Canvas solar system animation with all the specifications you requested. Here's the complete implementation:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Animation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="solarSystem"></canvas>
+    
+    <script>
+        // Constants and variables
+        const canvas = document.getElementById('solarSystem');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to full screen
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Center of the canvas
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        // Scale factor to fit all planets on screen
+        const scale = Math.min(canvas.width, canvas.height) / 1000;
+
+        // Time settings
+        const daysPerSecond = 10; // 1 second = 10 Earth days
+        let earthDays = 0;
+        let lastTime = 0;
+        let fpsValues = [];
+        let avgFps = 0;
+
+        // Celestial bodies data
+        const celestialBodies = [
+            {
+                name: "Sun",
+                colors: ["#f2831f", "#f15d22", "#d94125", "#a41d22"],
+                radius: 30 * scale,
+                distance: 0,
+                orbitalPeriod: 0, // Sun doesn't orbit
+                angle: 0
+            },
+            {
+                name: "Mercury",
+                colors: ["#5a5856", "#bfbdbc", "#8c8a89", "#f4f6f8"],
+                radius: 5 * scale,
+                distance: 60 * scale,
+                orbitalPeriod: 88, // Earth days
+                angle: 0
+            },
+            {
+                name: "Venus",
+                colors: ["#868a8d", "#d9b392", "#f3dbc3", "#414141"],
+                radius: 9 * scale,
+                distance: 90 * scale,
+                orbitalPeriod: 225,
+                angle: 0
+            },
+            {
+                name: "Earth",
+                colors: ["#1f386f", "#0b1725", "#386f61", "#dac0a5"],
+                radius: 10 * scale,
+                distance: 120 * scale,
+                orbitalPeriod: 365,
+                angle: 0
+            },
+            {
+                name: "Mars",
+                colors: ["#dabd9e", "#8c5d4b", "#f27c5f", "#c36d5c"],
+                radius: 7 * scale,
+                distance: 150 * scale,
+                orbitalPeriod: 687,
+                angle: 0
+            },
+            {
+                name: "Jupiter",
+                colors: ["#282411", "#c08137", "#bfb09c", "#a6705b"],
+                radius: 20 * scale,
+                distance: 200 * scale,
+                orbitalPeriod: 4333,
+                angle: 0
+            },
+            {
+                name: "Saturn",
+                colors: ["#f3cf89", "#dab778", "#736b59", "#c1a480"],
+                radius: 17 * scale,
+                distance: 250 * scale,
+                orbitalPeriod: 10759,
+                angle: 0,
+                hasRings: true
+            },
+            {
+                name: "Uranus",
+                colors: ["#3f575a", "#688a8c", "#95bbbe", "#cfecf0"],
+                radius: 14 * scale,
+                distance: 300 * scale,
+                orbitalPeriod: 30687,
+                angle: 0
+            },
+            {
+                name: "Neptune",
+                colors: ["#647ba5", "#7595bf", "#4e5d73", "#789ebf"],
+                radius: 14 * scale,
+                distance: 340 * scale,
+                orbitalPeriod: 60190,
+                angle: 0
+            },
+            {
+                name: "Pluto",
+                colors: ["#d8cbbb", "#f4ebdc", "#402a16", "#a79f97"],
+                radius: 4 * scale,
+                distance: 380 * scale,
+                orbitalPeriod: 90560,
+                angle: 0
+            }
+        ];
+
+        // Create off-screen canvas for orbital lines
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = canvas.width;
+        offscreenCanvas.height = canvas.height;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        // Draw orbital lines on off-screen canvas
+        function drawOrbitalLines() {
+            offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            offscreenCtx.globalAlpha = 0.3;
+            offscreenCtx.strokeStyle = 'white';
+            offscreenCtx.lineWidth = 1;
+            
+            celestialBodies.forEach(body => {
+                if (body.distance > 0) {
+                    offscreenCtx.beginPath();
+                    offscreenCtx.arc(centerX, centerY, body.distance, 0, Math.PI * 2);
+                    offscreenCtx.stroke();
+                }
+            });
+        }
+
+        // Draw a celestial body
+        function drawCelestialBody(body, x, y) {
+            ctx.save();
+            
+            // Create gradient for the planet
+            const gradient = ctx.createRadialGradient(
+                x, y, 0,
+                x, y, body.radius
+            );
+            
+            // Add colors to the gradient
+            body.colors.forEach((color, index) => {
+                gradient.addColorStop(index / (body.colors.length - 1), color);
+            });
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, body.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw Saturn's rings if applicable
+            if (body.hasRings) {
+                ctx.beginPath();
+                ctx.ellipse(x, y, body.radius * 1.8, body.radius * 0.5, 0, 0, Math.PI * 2);
+                ctx.strokeStyle = body.colors[2];
+                ctx.lineWidth = 3 * scale;
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+            
+            // Draw label
+            ctx.fillStyle = 'white';
+            ctx.font = `${12 * scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText(`[${body.name}]`, x, y + body.radius + 15 * scale);
+        }
+
+        // Draw FPS counter
+        function drawFPSCounter(fps, avgFps, earthDays) {
+            ctx.save();
+            
+            // Create rounded rectangle background
+            ctx.beginPath();
+            const x = 10;
+            const y = 10;
+            const width = 150;
+            const height = 70;
+            const radius = 10;
+            
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            ctx.lineTo(x + radius, y + height);
+            ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            ctx.lineTo(x, y + radius);
+            ctx.arcTo(x, y, x + radius, y, radius);
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+            
+            // Display FPS and Earth days
+            ctx.fillStyle = 'black';
+            ctx.font = `${14 * scale}px Arial`;
+            ctx.textAlign = 'left';
+            ctx.fillText(`FPS: ${fps.toFixed(1)}`, x + 15, y + 25);
+            ctx.fillText(`AVG FPS: ${avgFps.toFixed(1)}`, x + 15, y + 45);
+            ctx.fillText(`Earth Day: ${Math.floor(earthDays)}`, x + 15, y + 65);
+            
+            ctx.restore();
+        }
+
+        // Animation loop
+        function animate(time) {
+            // Calculate delta time and FPS
+            if (lastTime) {
+                const deltaTime = time - lastTime;
+                const fps = 1000 / deltaTime;
+                fpsValues.push(fps);
+                
+                // Keep only last 60 FPS values for average
+                if (fpsValues.length > 60) {
+                    fpsValues.shift();
+                }
+                
+                // Calculate average FPS
+                avgFps = fpsValues.reduce((sum, value) => sum + value, 0) / fpsValues.length;
+            }
+            lastTime = time;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background stars
+            drawStars();
+            
+            // Draw orbital lines (from off-screen canvas)
+            ctx.drawImage(offscreenCanvas, 0, 0);
+            
+            // Update planet positions and draw celestial bodies
+            celestialBodies.forEach(body => {
+                if (body.name !== "Sun") {
+                    // Update planet position
+                    body.angle += (Math.PI * 2) / (body.orbitalPeriod / daysPerSecond);
+                    const x = centerX + body.distance * Math.cos(body.angle);
+                    const y = centerY + body.distance * Math.sin(body.angle);
+                    
+                    // Draw planet
+                    drawCelestialBody(body, x, y);
+                } else {
+                    // Draw Sun at the center
+                    drawCelestialBody(body, centerX, centerY);
+                }
+            });
+            
+            // Draw FPS counter
+            drawFPSCounter(fpsValues.length > 0 ? fpsValues[fpsValues.length - 1] : 0, avgFps, earthDays);
+            
+            // Update Earth days
+            earthDays += (1 / 60) * daysPerSecond;
+            
+            // Request next frame
+            requestAnimationFrame(animate);
+        }
+
+        // Draw random stars in the background
+        function drawStars() {
+            ctx.fillStyle = 'white';
+            for (let i = 0; i < 200; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = Math.random() * 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Update center coordinates
+            centerX = canvas.width / 2;
+            centerY = canvas.height / 2;
+            
+            // Update offscreen canvas size
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+            
+            // Redraw orbital lines
+            drawOrbitalLines();
+        });
+
+        // Initialize the animation
+        drawOrbitalLines();
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
+```
+
+This implementation includes:
+
+1. A full-screen canvas that adapts to window resizing
+2. The Sun and all 9 planets with their specified colors
+3. Proper scaling of planet sizes (Sun is largest, Jupiter second)
+4. Planets arranged from inner to outer orbit
+5. Sufficient spacing between orbits to avoid overlap
+6. Semi-transparent white orbital lines drawn on an off-screen canvas
+7. Labels for all celestial bodies
+8. Time compression (1 second = 10 Earth days)
+9. Smooth animation using requestAnimationFrame
+10. FPS counter with current and average FPS plus Earth day counter
+11. Saturn with rings for added detail
+12. A starry background for visual appeal
+
+The planets will orbit the Sun at speeds proportional to their actual orbital periods, with Earth completing one orbit in 365 simulated days.
